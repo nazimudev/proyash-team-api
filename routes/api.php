@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\Admin\AdminContributionController;
 use App\Http\Controllers\Api\Admin\MemberController;
 use App\Http\Controllers\Api\Admin\ContactMessageController;
 use App\Http\Controllers\Api\Admin\GalleryPhotoController;
@@ -27,6 +28,9 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\Member\MemberContributionPaymentController;
 use App\Http\Controllers\Api\Admin\AdminContributionPaymentController;
+use App\Http\Controllers\Api\Member\MemberContributionOnlyController;
+use App\Http\Controllers\Api\Member\MemberDashboardController;
+use App\Http\Controllers\Api\Member\MemberSettingsController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -103,51 +107,53 @@ Route::middleware('auth:sanctum')->prefix('admin')->group(function () {
     Route::get('/contact-settings', [ContactSettingController::class, 'show']);
     Route::match(['put', 'patch'], '/contact-settings', [ContactSettingController::class, 'update']);
 
-    // Contributions Route
-    Route::post('/contributions/generate',[MemberContributionController::class, 'generate']);
 
-    // Route::get('/contribution-payments',[AdminContributionPaymentController::class, 'index']);
-    // Route::get('/contribution-payments/{id}',[AdminContributionPaymentController::class, 'show']);
-    // Route::post('/contribution-payments/{id}/approve',[AdminContributionPaymentController::class, 'approve']);
-    // Route::post('/contribution-payments/{id}/reject',[AdminContributionPaymentController::class, 'reject']);
-    // Route::post('/contribution-payments/cash',[AdminContributionPaymentController::class, 'storeCashPayment']);
+});
+
+Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(function () {
+
+    // Contributions Route
+    Route::post('/contributions/generate', [MemberContributionController::class, 'generate']);
+
+    Route::get('/contribution-payments',[AdminContributionPaymentController::class, 'index']);
+    Route::get('/contribution-payments/{id}',[AdminContributionPaymentController::class, 'show']);
+    Route::post('/contribution-payments/{id}/approve',[AdminContributionPaymentController::class, 'approve']);
+    Route::post('/contribution-payments/{id}/reject',[AdminContributionPaymentController::class, 'reject']);
+    Route::post('/contribution-payments/cash',[AdminContributionPaymentController::class, 'storeCashPayment']);
+
+    // Contribution list
+    Route::get('/contributions', [AdminContributionController::class,'index']);
+    // Contribution summary
+    Route::get('/contributions/summary', [AdminContributionController::class,'summary']);
+    // Specific member contribution history
+    Route::get('/contributions/members/{memberId}', [AdminContributionController::class,'memberHistory']);
+    // Members with outstanding contributions
+    Route::get('/contributions/due-members', [AdminContributionController::class,'dueMembers']);
 
 
 });
 
-Route::middleware(['auth:sanctum', 'role:admin'])
-    ->prefix('admin')
-    ->group(function () {
-        Route::get(
-            '/contribution-payments',
-            [AdminContributionPaymentController::class, 'index']
-        );
-        Route::get(
-            '/contribution-payments/{id}',
-            [AdminContributionPaymentController::class, 'show']
-        );
-        Route::post(
-            '/contribution-payments/{id}/approve',
-            [AdminContributionPaymentController::class, 'approve']
-        );
-        Route::post(
-            '/contribution-payments/{id}/reject',
-            [AdminContributionPaymentController::class, 'reject']
-        );
-        Route::post(
-            '/contribution-payments/cash',
-            [AdminContributionPaymentController::class, 'storeCashPayment']
-        );
-    });
 
+Route::middleware(['auth:sanctum','role:member'])->prefix('member')->group(function () {
 
-Route::middleware(['auth:sanctum'])->prefix('member')->group(function () {
+    Route::get('/account', [MemberController::class, 'account']);
+    Route::get('/profile', [MemberController::class, 'profile']);
+    Route::patch('/profile', [MemberController::class, 'updateProfile']);
+    Route::post('/profile/photo', [MemberController::class,'updateProfilePhoto',]);
 
-        Route::get('/payment-methods',[MemberContributionPaymentController::class, 'paymentMethods']);
-        Route::post('/contributions/{contributionId}/payments',[MemberContributionPaymentController::class, 'store']);
-        Route::get('/contribution-payments',[MemberContributionPaymentController::class, 'history']);
+    Route::get('/dashboard',[MemberDashboardController::class, 'index']);
 
-    });
+    Route::get('/payment-methods',[MemberContributionPaymentController::class, 'paymentMethods']);
+    Route::post('/contributions/{contributionId}/payments',[MemberContributionPaymentController::class, 'store']);
+    Route::get('/payments',[MemberContributionPaymentController::class, 'history']);
+
+    Route::get('/contributions',[MemberContributionOnlyController::class, 'index']);
+
+    Route::patch('/change-email', [MemberSettingsController::class, 'changeEmail']);
+    Route::patch('/change-password', [MemberSettingsController::class, 'changePassword']);
+    Route::post('/logout', [MemberSettingsController::class, 'logout']);
+
+});
 
 Route::prefix('public')->group(function () {
     Route::get('/active-payment-methods', [PaymentController::class, 'activeMethods']);

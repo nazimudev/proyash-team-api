@@ -29,7 +29,7 @@ class AdminContributionPaymentController extends Controller
 
         $payments = ContributionPayment::query()
             ->with([
-                'member',
+                'member.user',
                 'paymentMethod',
                 'contribution',
                 'verifier',

@@ -217,4 +217,195 @@ class MemberController extends Controller
             ],
         ]);
     }
+
+
+    public function account(Request $request)
+    {
+        $user = $request->user();
+
+        $member = Member::with([
+            'user',
+            'addresses',
+        ])
+            ->where('user_id', $user->id)
+            ->firstOrFail();
+
+        $addresses = $member->addresses->keyBy('type');
+
+        $memberData = $member->toArray();
+
+        // Avoid duplicating related data.
+        unset($memberData['user'], $memberData['addresses']);
+
+        // Public profile photo URL.
+        $memberData['profile_photo_url'] = $member->profile_photo_path
+            ? Storage::disk('public')->url($member->profile_photo_path)
+            : null;
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Member account retrieved successfully.',
+            'data' => [
+                'user' => [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                ],
+
+                'member' => $memberData,
+
+                'addresses' => [
+                    'permanent' => $addresses->get('permanent'),
+                    'present' => $addresses->get('present'),
+                ],
+
+                'membership' => [
+                    'member_status' => $member->status,
+                ],
+            ],
+        ]);
+    }
+
+    public function updateProfile(Request $request)
+    {
+        $user = $request->user();
+
+        $member = Member::with(['user', 'addresses'])
+            ->where('user_id', $user->id)
+            ->firstOrFail();
+
+        $validated = $request->validate([
+            'full_name_en' => ['required', 'string', 'max:255'],
+            'full_name_bn' => ['nullable', 'string', 'max:255'],
+            'email' => [
+                'required',
+                'email',
+                'max:255',
+                Rule::unique('users', 'email')->ignore($user->id),
+            ],
+
+            'father_name' => ['nullable', 'string', 'max:255'],
+            'mother_name' => ['nullable', 'string', 'max:255'],
+            'date_of_birth' => ['nullable', 'date'],
+            'nationality' => ['nullable', 'string', 'max:100'],
+            'religion' => ['nullable', 'string', 'max:100'],
+            'occupation' => ['nullable', 'string', 'max:255'],
+            'gender' => ['nullable', 'string', 'max:50'],
+            'marital_status' => ['nullable', 'string', 'max:50'],
+            'educational_qualification' => ['nullable', 'string', 'max:255'],
+            'blood_group' => ['nullable', 'string', 'max:10'],
+            'mobile_number' => ['nullable', 'string', 'max:30'],
+
+            'addresses' => ['nullable', 'array'],
+            'addresses.permanent' => ['nullable', 'array'],
+            'addresses.present' => ['nullable', 'array'],
+
+            'addresses.permanent.village' => ['nullable', 'string', 'max:255'],
+            'addresses.permanent.post_office' => ['nullable', 'string', 'max:255'],
+            'addresses.permanent.upazila' => ['nullable', 'string', 'max:255'],
+            'addresses.permanent.district' => ['nullable', 'string', 'max:255'],
+
+            'addresses.present.village' => ['nullable', 'string', 'max:255'],
+            'addresses.present.post_office' => ['nullable', 'string', 'max:255'],
+            'addresses.present.upazila' => ['nullable', 'string', 'max:255'],
+            'addresses.present.district' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        DB::transaction(function () use ($validated, $user, $member) {
+
+            $user->update([
+                'name' => $validated['full_name_en'],
+                'email' => $validated['email'],
+            ]);
+
+            $member->update([
+                'full_name_bn' => $validated['full_name_bn'] ?? null,
+                'father_name' => $validated['father_name'] ?? null,
+                'mother_name' => $validated['mother_name'] ?? null,
+                'date_of_birth' => $validated['date_of_birth'] ?? null,
+                'nationality' => $validated['nationality'] ?? null,
+                'religion' => $validated['religion'] ?? null,
+                'occupation' => $validated['occupation'] ?? null,
+                'gender' => $validated['gender'] ?? null,
+                'marital_status' => $validated['marital_status'] ?? null,
+                'educational_qualification' => $validated['educational_qualification'] ?? null,
+                'blood_group' => $validated['blood_group'] ?? null,
+                'mobile_number' => $validated['mobile_number'] ?? null,
+            ]);
+
+            foreach (['permanent', 'present'] as $type) {
+                if (isset($validated['addresses'][$type])) {
+                    $member->addresses()->updateOrCreate(
+                        ['type' => $type],
+                        $validated['addresses'][$type]
+                    );
+                }
+            }
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Member profile updated successfully.',
+            'data' => [
+                'user' => [
+                    'id' => $user->id,
+                    'name' => $user->fresh()->name,
+                    'email' => $user->fresh()->email,
+                ],
+                'member' => $member->fresh(),
+                'addresses' => $member->addresses()->get()->keyBy('type'),
+            ],
+        ]);
+    }
+
+
+    public function updateProfilePhoto(Request $request)
+    {
+        $request->validate([
+            'profile_photo' => [
+                'required',
+                'image',
+                'mimes:jpg,jpeg,png,webp',
+                'max:2048',
+            ],
+        ]);
+
+        $user = $request->user();
+
+        $member = Member::where('user_id', $user->id)
+            ->firstOrFail();
+
+        $oldPhotoPath = $member->profile_photo_path;
+
+        $newPhotoPath = $request->file('profile_photo')
+            ->store('members/profiles', 'public');
+
+        try {
+            $member->update([
+                'profile_photo_path' => $newPhotoPath,
+            ]);
+
+            if ($oldPhotoPath && $oldPhotoPath !== $newPhotoPath) {
+                Storage::disk('public')->delete($oldPhotoPath);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Profile photo updated successfully.',
+                'data' => [
+                    'profile_photo_url' => Storage::disk('public')
+                        ->url($newPhotoPath),
+                ],
+            ]);
+        } catch (Throwable $e) {
+            Storage::disk('public')->delete($newPhotoPath);
+
+            report($e);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update profile photo.',
+            ], 500);
+        }
+    }
 }
