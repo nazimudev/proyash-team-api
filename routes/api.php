@@ -28,6 +28,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\Member\MemberContributionPaymentController;
 use App\Http\Controllers\Api\Admin\AdminContributionPaymentController;
+use App\Http\Controllers\Api\Admin\AdminDashboardController;
 use App\Http\Controllers\Api\Member\MemberContributionOnlyController;
 use App\Http\Controllers\Api\Member\MemberDashboardController;
 use App\Http\Controllers\Api\Member\MemberSettingsController;
@@ -111,6 +112,8 @@ Route::middleware('auth:sanctum')->prefix('admin')->group(function () {
 });
 
 Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(function () {
+
+    Route::get('/dashboard', [AdminDashboardController::class, 'index']);
 
     // Contributions Route
     Route::post('/contributions/generate', [MemberContributionController::class, 'generate']);
