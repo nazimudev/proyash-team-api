@@ -3,12 +3,13 @@
 return [
 
     'categories' => [
-        'Community Support',
-        'Tree Plantation',
-        'Education Support',
-        'Social Activities',
-        'Events',
-        'Other Activities',
+        'Education & Awareness',
+        'Healthcare',
+        'Humanitarian Assistance',
+        'Environmental',
+        'Youth Development',
+        'Equality & Social Inclusion',
+        'Others',
     ],
 
     'statuses' => [
